@@ -7,20 +7,18 @@ pyinstaller.exe --clean app.spec
 import asyncio
 import importlib
 import importlib.util
+import logging
 import os
 import random
 from datetime import datetime, timedelta
+from itertools import cycle
 from pathlib import Path
 
 import discord
 from dotenv import load_dotenv
 
-from common.db import DB, ROOT_DIR
+from common.db import DB, IS_EXE, ROOT_DIR
 from common.logger import init_logging, init_sentry
-
-load_dotenv()
-log = init_logging()
-db: DB = DB.load()
 
 
 class Config:
@@ -34,15 +32,19 @@ class Config:
 class SelfBot(discord.Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.bg_task: asyncio.Task = None
+        self.bg_task2: asyncio.Task = None
 
     async def setup_hook(self) -> None:
-        self.bg_task = self.loop.create_task(self.ad_loop())
         if dsn := os.getenv("SENTRY_DSN"):
             log.info("Initializing Sentry")
             init_sentry(dsn)
 
     async def on_ready(self):
         log.info(f"Logged in as {self.user}")
+        self.bg_task = self.loop.create_task(self.ad_loop())
+        if IS_EXE:
+            self.bg_task2 = self.loop.create_task(self.status_bar())
 
     async def on_message(self, message: discord.Message):
         if message.author.id == self.user.id:
@@ -50,7 +52,6 @@ class SelfBot(discord.Client):
 
     async def ad_loop(self):
         await self.wait_until_ready()
-
         while not self.is_closed():
             await self.check_ads()
             await asyncio.sleep(120)
@@ -68,6 +69,29 @@ class SelfBot(discord.Client):
                 await self.maybe_send_ad(ad_dir)
             except Exception as e:
                 log.error(f"Error sending ad from {ad_dir.stem}", exc_info=e)
+
+    async def status_bar(self):
+        BAR = [
+            "▱▱▱▱▱▱▱",
+            "▰▱▱▱▱▱▱",
+            "▰▰▱▱▱▱▱",
+            "▰▰▰▱▱▱▱",
+            "▰▰▰▰▱▱▱",
+            "▰▰▰▰▰▱▱",
+            "▰▰▰▰▰▰▱",
+            "▰▰▰▰▰▰▰",
+            "▱▰▰▰▰▰▰",
+            "▱▱▰▰▰▰▰",
+            "▱▱▱▰▰▰▰",
+            "▱▱▱▱▰▰▰",
+            "▱▱▱▱▱▰▰",
+            "▱▱▱▱▱▱▰",
+        ]
+        bar_cycle = cycle(BAR)
+        while not self.is_closed():
+            cmd = "title SelfBot Poster " + next(bar_cycle)
+            os.system(cmd)
+            await asyncio.sleep(0.15)
 
     async def maybe_send_ad(self, ad_dir: Path):
         ad_content_path = ad_dir / "content.txt"
@@ -121,7 +145,6 @@ class SelfBot(discord.Client):
         for image_path in image_paths:
             files.append(discord.File(image_path))
 
-        log.info(f"Sending ad to {channel} from {ad_dir.stem}")
         if isinstance(channel, discord.ForumChannel):
             kwargs = {"name": config.title, "content": ad_content}
             if files:
@@ -140,15 +163,20 @@ class SelfBot(discord.Client):
             if files:
                 kwargs["files"] = files
             await channel.send(**kwargs)
-        log.info(f"Sent ad to {channel} from {ad_dir.stem}")
+        log.info(f"Posted message to {channel} from {ad_dir.stem}")
 
         # If we made it here lets wait for a bit
         await asyncio.sleep(15)
 
 
+load_dotenv()
+client = SelfBot(chunk_guilds_at_startup=True)
+init_logging()
+log = logging.getLogger("selfbot")
+db: DB = DB.load()
+
 if __name__ == "__main__":
     try:
-        client = SelfBot(chunk_guilds_at_startup=True)
         client.run(token=os.getenv("TOKEN"), log_handler=None)
     finally:
         db.save()

@@ -14,14 +14,15 @@ yellow = Fore.YELLOW + Style.BRIGHT
 red = Fore.LIGHTRED_EX + Style.BRIGHT
 critical = Fore.LIGHTYELLOW_EX + Back.RED + Style.BRIGHT
 reset = Style.RESET_ALL + Fore.RESET + Back.RESET
-timestring = Fore.LIGHTBLACK_EX + Style.BRIGHT + "%(asctime)s " + reset
-name = Fore.MAGENTA + "%(name)s" + reset
+timestamp = Fore.WHITE + "[%(asctime)s]" + reset
+module = Fore.LIGHTBLACK_EX + Style.BRIGHT + "[%(name)s]" + reset
+message = Fore.WHITE + Style.BRIGHT + "%(message)s" + reset
 formats = {
-    logging.DEBUG: f"{timestring}{green}[ %(levelname)s  ]{reset} {name}: %(message)s",
-    logging.INFO: f"{timestring}{blue}[  %(levelname)s  ]{reset} {name}: %(message)s",
-    logging.WARNING: f"{timestring}{yellow}[%(levelname)s ]{reset} {name}: %(message)s",
-    logging.ERROR: f"{timestring}{red}[ %(levelname)s  ]{reset} {name}: %(message)s",
-    logging.CRITICAL: f"{timestring}{critical}[%(levelname)s]{reset} {name}: %(message)s",
+    logging.DEBUG: f"{timestamp} {green}%(levelname)s{reset}    {module}: {message}",
+    logging.INFO: f"{timestamp} {blue}%(levelname)s{reset}     {module}: {message}",
+    logging.WARNING: f"{timestamp} {yellow}%(levelname)s{reset}  {module}: {message}",
+    logging.ERROR: f"{timestamp} {red}%(levelname)s{reset}    {module}: {message}",
+    logging.CRITICAL: f"{timestamp} {critical}%(levelname)s{reset} {module}: {message}",
 }
 dt_fmt = "%Y-%m-%d %I:%M:%S %p"
 colorama.init(autoreset=True)
@@ -30,33 +31,36 @@ colorama.init(autoreset=True)
 class PrettyFormatter(logging.Formatter):
     def format(self, record):
         log_fmt = formats[record.levelno]
-        formatter = logging.Formatter(fmt=log_fmt, datefmt=dt_fmt)
+        formatter = logging.Formatter(fmt=log_fmt, datefmt="%I:%M:%S %p")
         return formatter.format(record)
 
 
-def init_logging(filename: str = "logs.log") -> logging.Logger:
-    log = logging.getLogger("discord")
-    handler = logging.StreamHandler()
-    handler.setFormatter(PrettyFormatter())
-    handler.setLevel(logging.DEBUG)
-    log.addHandler(handler)
+def init_logging():
+    stdout_handler = logging.StreamHandler()
+    stdout_handler.setFormatter(PrettyFormatter())
+    stdout_handler.setLevel(logging.DEBUG)
 
-    logging.getLogger("discord.gateway").setLevel(logging.INFO)
-    logging.getLogger("discord.client").setLevel(logging.INFO)
-    logging.getLogger("discord.http").setLevel(logging.INFO)
-    handler = RotatingFileHandler(
-        filename=filename,
+    file_handler = RotatingFileHandler(
+        filename="logs.log",
         mode="a",
         encoding="utf-8",
         maxBytes=1 * 1024 * 1024,  # 1 MiB
         backupCount=0,  # No backup files
     )
-    formatter = logging.Formatter(
-        "[{asctime}] [{levelname:<8}] {name}: {message}", dt_fmt, style="{"
+    file_formatter = logging.Formatter(
+        fmt="{asctime} [{levelname:<8}] {name}: {message}",
+        datefmt=dt_fmt,
+        style="{",
     )
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
-    return log
+    file_handler.setFormatter(file_formatter)
+
+    logging.basicConfig(
+        level=logging.DEBUG,
+        datefmt=dt_fmt,
+        handlers=[stdout_handler, file_handler],
+    )
+
+    logging.getLogger("discord").setLevel(logging.INFO)
 
 
 def init_sentry(dsn: str) -> None:
@@ -80,7 +84,8 @@ def init_sentry(dsn: str) -> None:
 
 
 if __name__ == "__main__":
-    log = init_logging()
+    init_logging()
+    log = logging.getLogger("test")
     log.debug("This is a debug message")
     log.info("This is an info message")
     log.warning("This is a warning message")
