@@ -7,7 +7,6 @@ pyinstaller.exe --clean app.spec
 import asyncio
 import importlib
 import importlib.util
-import logging
 import os
 import random
 from datetime import datetime, timedelta
@@ -20,16 +19,14 @@ from common.db import DB, ROOT_DIR
 from common.logger import init_logging, init_sentry
 
 load_dotenv()
-init_logging()
+log = init_logging()
 
-log = logging.getLogger("selfbot")
 if dsn := os.getenv("SENTRY_DSN"):
     log.info("Initializing Sentry")
     init_sentry(dsn)
 
 token = os.getenv("TOKEN")
 error_channel = os.getenv("ERROR_CHANNEL")
-
 
 db: DB = DB.load()
 
@@ -61,7 +58,7 @@ class SelfBot(discord.Client):
 
         while not self.is_closed():
             await self.check_ads()
-            await asyncio.sleep(60)
+            await asyncio.sleep(120)
 
     async def check_ads(self):
         ad_dirs = ROOT_DIR / "ads"
@@ -78,7 +75,6 @@ class SelfBot(discord.Client):
                 log.error(f"Error sending ad from {ad_dir.stem}", exc_info=e)
 
     async def maybe_send_ad(self, ad_dir: Path):
-        log.info(f"Checking ad in {ad_dir.stem}")
         ad_content_path = ad_dir / "content.txt"
         if not ad_content_path.exists():
             log.error(f"Missing ad content file in {ad_dir.stem}")
