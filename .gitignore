@@ -167,3 +167,6 @@ db.json
 # Misc
 ads/*
 scanner.py
+
+# Executables
+SelfBot.exe
