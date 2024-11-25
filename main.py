@@ -20,14 +20,6 @@ from common.logger import init_logging, init_sentry
 
 load_dotenv()
 log = init_logging()
-
-if dsn := os.getenv("SENTRY_DSN"):
-    log.info("Initializing Sentry")
-    init_sentry(dsn)
-
-token = os.getenv("TOKEN")
-error_channel = os.getenv("ERROR_CHANNEL")
-
 db: DB = DB.load()
 
 
@@ -45,6 +37,9 @@ class SelfBot(discord.Client):
 
     async def setup_hook(self) -> None:
         self.bg_task = self.loop.create_task(self.ad_loop())
+        if dsn := os.getenv("SENTRY_DSN"):
+            log.info("Initializing Sentry")
+            init_sentry(dsn)
 
     async def on_ready(self):
         log.info(f"Logged in as {self.user}")
@@ -153,7 +148,7 @@ class SelfBot(discord.Client):
 
 if __name__ == "__main__":
     try:
-        client = SelfBot(chunk_guilds_at_startup=True, log_handler=None)
-        client.run(token)
+        client = SelfBot(chunk_guilds_at_startup=True)
+        client.run(token=os.getenv("TOKEN"), log_handler=None)
     finally:
         db.save()

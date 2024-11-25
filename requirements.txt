@@ -1,4 +1,6 @@
+colorama
 discord.py-self
+pyinstaller
 pydantic
 python-dotenv
 sentry-sdk
