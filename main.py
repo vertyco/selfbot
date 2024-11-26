@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 
 from common.db import DB, IS_EXE, ROOT_DIR
 from common.logger import init_logging, init_sentry
+from common.version import VERSION
 
 
 class Config:
@@ -38,7 +39,7 @@ class SelfBot(discord.Client):
     async def setup_hook(self) -> None:
         if dsn := os.getenv("SENTRY_DSN"):
             log.info("Initializing Sentry")
-            init_sentry(dsn)
+            init_sentry(dsn, VERSION)
 
     async def on_ready(self):
         log.info(f"Logged in as {self.user}")
@@ -139,7 +140,6 @@ class SelfBot(discord.Client):
         )
         if image_paths:
             image_paths.sort(key=lambda p: p.stem)
-            log.info(f"Found {len(image_paths)} images in {ad_dir.stem}")
 
         files = []
         for image_path in image_paths:
@@ -163,7 +163,11 @@ class SelfBot(discord.Client):
             if files:
                 kwargs["files"] = files
             await channel.send(**kwargs)
-        log.info(f"Posted message to {channel} from {ad_dir.stem}")
+
+        logtxt = f"Posted message to {channel} from {ad_dir.stem}"
+        if files:
+            logtxt += f" with {len(files)} image(s)"
+        log.info(logtxt)
 
         # If we made it here lets wait for a bit
         await asyncio.sleep(15)
@@ -176,6 +180,8 @@ log = logging.getLogger("selfbot")
 db: DB = DB.load()
 
 if __name__ == "__main__":
+    if IS_EXE:
+        os.system("title SelfBot Poster [Iniializing...]")
     try:
         client.run(token=os.getenv("TOKEN"), log_handler=None)
     finally:

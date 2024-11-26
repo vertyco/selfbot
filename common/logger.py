@@ -45,7 +45,7 @@ def init_logging():
         mode="a",
         encoding="utf-8",
         maxBytes=1 * 1024 * 1024,  # 1 MiB
-        backupCount=0,  # No backup files
+        backupCount=2,  # 2 backups
     )
     file_formatter = logging.Formatter(
         fmt="{asctime} [{levelname:<8}] {name}: {message}",
@@ -63,7 +63,7 @@ def init_logging():
     logging.getLogger("discord").setLevel(logging.INFO)
 
 
-def init_sentry(dsn: str) -> None:
+def init_sentry(dsn: str, version: str) -> None:
     """Initializes Sentry SDK.
 
     Parameters
@@ -79,6 +79,7 @@ def init_sentry(dsn: str) -> None:
             AioHttpIntegration(),
             LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
         ],
+        release=version,
         ignore_errors=[KeyboardInterrupt, RuntimeError, discord.ConnectionClosed],
     )
 
