@@ -200,7 +200,7 @@ db: DB = DB.load()
 
 if __name__ == "__main__":
     if IS_EXE:
-        os.system("title SelfBot Poster [Iniializing...]")
+        os.system("title SelfBot Poster [Starting...]")
     try:
         client.run(token=os.getenv("TOKEN"), log_handler=None)
     finally:

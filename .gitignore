@@ -169,6 +169,7 @@ ads/*
 scanner.py
 *.ico
 build.py
+*.log*
 
 # Executables
 SelfBot.exe
