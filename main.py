@@ -25,7 +25,6 @@ SOFTWARE.
 
 import asyncio
 import importlib
-import importlib.util
 import logging
 import os
 import random
@@ -84,6 +83,21 @@ class SelfBot(discord.Client):
             log.error("No ad directories found")
             return
 
+        if post_time := os.getenv("POSTTIME"):
+            # Duration that posts can be made
+            now = datetime.now().astimezone().hour
+            start_hour, end_hour = map(int, post_time.split("-"))
+            # example: 21-6 is 9pm-6am post time
+            # Lets say it is currently 8am, that means we cannot post yet
+            if start_hour < end_hour:
+                # Does not span midnight (e.g., 9am-5pm)
+                can_post = start_hour <= now < end_hour
+            else:
+                # Spans midnight (e.g., 9pm-5am)
+                can_post = now >= start_hour or now < end_hour
+            if not can_post:
+                return
+
         for ad_dir in ad_dirs.iterdir():
             try:
                 await self.maybe_send_ad(ad_dir)
@@ -109,12 +123,15 @@ class SelfBot(discord.Client):
         ]
         bar_cycle = cycle(BAR)
         while not self.is_closed():
-            cmd = "title SelfBot Poster " + next(bar_cycle)
+            cmd = "title SelfBot AdPoster " + next(bar_cycle)
             os.system(cmd)
             await asyncio.sleep(0.15)
 
     async def maybe_send_ad(self, ad_dir: Path):
         ad_content_path = ad_dir / "content.txt"
+        if not ad_content_path.exists():
+            ad_content_path = ad_dir / "content.md"
+
         if not ad_content_path.exists():
             log.error(f"Missing ad content file in {ad_dir.stem}")
             return
@@ -140,12 +157,16 @@ class SelfBot(discord.Client):
         if config.channel_id in db.sent_messages:
             last_sent = db.sent_messages[config.channel_id]
             now = datetime.now()
+            if last_sent > now:
+                # Not ready yet
+                return
             if now - last_sent < timedelta(minutes=config.cooldown_minutes):
                 # Not ready yet
                 return
 
         # Set the last sent time to a random time in the future to give some variance
-        next_send = datetime.now() + timedelta(minutes=random.randint(5, 60))
+        variance = random.randint(30, 120)
+        next_send = datetime.now() + timedelta(minutes=variance)
         db.sent_messages[config.channel_id] = next_send
         db.save()
 
@@ -181,15 +202,19 @@ class SelfBot(discord.Client):
             kwargs = {"content": ad_content}
             if files:
                 kwargs["files"] = files
-            await channel.send(**kwargs)
+            async with channel.typing():
+                await asyncio.sleep(random.randint(9, 43))
+                await channel.send(**kwargs)
 
         logtxt = f"Posted message to {channel} from {ad_dir.stem}"
         if files:
             logtxt += f" with {len(files)} image(s)"
         log.info(logtxt)
 
-        # If we made it here lets wait for a bit
-        await asyncio.sleep(15)
+        # If we made it here the ad was sent, lets wait here for 5 to 45 minutes
+        wait = random.randint(5, 45)
+        log.info(f"Waiting {wait} minutes before sending next ad")
+        await asyncio.sleep(wait * 60)
 
 
 load_dotenv()
@@ -203,5 +228,26 @@ if __name__ == "__main__":
         os.system("title SelfBot Poster [Starting...]")
     try:
         client.run(token=os.getenv("TOKEN"), log_handler=None)
+    except discord.HTTPException as e:
+        if e.status == 401:
+            log.error("Your token is invalid! Please update it in the .env file.")
+            input("Press enter to exit...")
+        else:
+            log.error("An HTTP error occurred", exc_info=e)
+            input("Press enter to exit...")
+    except KeyboardInterrupt:
+        input("Press enter to exit...")
+    except discord.LoginFailure:
+        log.error("Failed to login. Check your token.")
+        input("Press enter to exit...")
+    except discord.ConnectionClosed as e:
+        if e.code == 4004:
+            log.error("Your token has been invalidated. Please update it!")
+        else:
+            log.error("A connection error occurred", exc_info=e)
+        input("Press enter to exit...")
+    except Exception as e:
+        log.error("An error occurred", exc_info=e)
+        input("Press enter to exit...")
     finally:
         db.save()
